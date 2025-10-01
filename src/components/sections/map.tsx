@@ -8,7 +8,7 @@ const MapSection = () => {
     const { language } = useLanguage();
 
     const location = {
-        title: "Maha Zaika",
+        title: "Swad Restaurant",
         lat: 19.604917,
         lng: 76.68875,
         address: contactInfo.address[language]

@@ -7,8 +7,8 @@ import Footer from '@/components/layout/footer';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Maha Zaika | Authentic Maharashtrian Cuisine',
-  description: 'Experience the rich and diverse flavors of authentic Maharashtrian cuisine at Maha Zaika, a family-owned restaurant in the heart of Maharashtra.',
+  title: 'Swad Restaurant | Authentic Indian Cuisine',
+  description: 'Experience the rich and diverse flavors of authentic Indian cuisine at Swad Restaurant and Udappi Center.',
 };
 
 export default function RootLayout({
@@ -19,7 +19,7 @@ export default function RootLayout({
   const restaurantSchema = {
     "@context": "https://schema.org",
     "@type": "Restaurant",
-    "name": "Maha Zaika",
+    "name": "Swad Restaurant and Udappi Center",
     "image": "https://picsum.photos/seed/logo/512/512",
     "telephone": "+91-9876543210",
     "address": {
@@ -51,7 +51,7 @@ export default function RootLayout({
         "closes": "23:00"
       }
     ],
-    "servesCuisine": "Maharashtrian"
+    "servesCuisine": "Indian"
   };
 
   return (

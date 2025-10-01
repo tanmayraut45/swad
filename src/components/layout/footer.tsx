@@ -10,11 +10,11 @@ const Footer = () => {
             <Link href="/" className="flex items-center gap-2">
               <ChefHat className="h-8 w-8 text-accent" />
               <span className="font-headline text-xl font-bold">
-                Maha Zaika
+                Swad Restaurant
               </span>
             </Link>
             <p className="mt-4 text-sm text-primary-foreground/80">
-              Authentic Maharashtrian Cuisine.
+              Authentic Indian Cuisine.
             </p>
           </div>
 
@@ -24,7 +24,6 @@ const Footer = () => {
               <ul className="mt-4 space-y-2">
                 <li><Link href="#about" className="text-sm hover:text-accent">About Us</Link></li>
                 <li><Link href="#menu" className="text-sm hover:text-accent">Menu</Link></li>
-                <li><Link href="#gallery" className="text-sm hover:text-accent">Gallery</Link></li>
                 <li><Link href="#contact" className="text-sm hover:text-accent">Contact</Link></li>
               </ul>
             </div>
@@ -52,7 +51,7 @@ const Footer = () => {
           </div>
         </div>
         <div className="mt-12 border-t border-primary-foreground/20 pt-8 text-center text-sm text-primary-foreground/60">
-          <p>&copy; {new Date().getFullYear()} Maha Zaika. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} Swad Restaurant. All rights reserved.</p>
         </div>
       </div>
     </footer>

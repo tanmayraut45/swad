@@ -1,7 +1,7 @@
 {
-  "name": "maha-zaika",
+  "name": "swad-restaurant",
   "version": "0.1.0",
-  "description": "A premium, elegant, restaurant portfolio website for an authentic Maharashtrian Family Restaurant.",
+  "description": "A premium, elegant, restaurant portfolio website for Swad Restaurant and Udappi Center.",
   "scripts": {
     "dev": "next dev --turbopack -p 9002",
     "genkit:dev": "genkit start -- tsx src/ai/dev.ts",

@@ -38,7 +38,7 @@ const Header = () => {
         <Link href="/" className="flex items-center gap-2">
           <ChefHat className="h-8 w-8 text-primary" />
           <span className="font-headline text-xl font-bold text-primary">
-            Maha Zaika
+            Swad Restaurant
           </span>
         </Link>
         <nav className="hidden items-center gap-6 lg:flex">
@@ -73,7 +73,7 @@ const Header = () => {
                  <Link href="/" className="flex items-center gap-2" onClick={handleLinkClick}>
                   <ChefHat className="h-8 w-8 text-primary" />
                   <span className="font-headline text-xl font-bold text-primary">
-                    Maha Zaika
+                    Swad Restaurant
                   </span>
                 </Link>
                 <nav className="mt-8 flex flex-col gap-6">
