@@ -1,3 +1,58 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "about-us-family",
+      "description": "Our family, the heart of Swad Restaurant.",
+      "imageUrl": "https://images.unsplash.com/photo-1534235187448-833893dfe3e0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw4fHxpbmRpYW4lMjBmYW1pbHl8ZW58MHx8fHwxNzU5MzMwMjEwfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "indian family"
+    },
+    {
+      "id": "gallery-1",
+      "description": "Vibrant Spices",
+      "imageUrl": "https://images.unsplash.com/photo-1506368249639-73a05d6f6488?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw2fHxpbmRpYW4lMjBzcGljZXN8ZW58MHx8fHwxNzU5MjY0MjkzfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "indian spices"
+    },
+    {
+      "id": "gallery-2",
+      "description": "Cozy Ambiance",
+      "imageUrl": "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwyfHxyZXN0YXVyYW50JTIwaW50ZXJpb3J8ZW58MHx8fHwxNzU5MjMyNjYwfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "restaurant interior"
+    },
+    {
+      "id": "gallery-3",
+      "description": "Delicious Thali",
+      "imageUrl": "https://images.unsplash.com/photo-1596797038530-2c107229654b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw5fHxpbmRpYW4lMjBmb29kfGVufDB8fHx8MTc1OTMyMjY4NXww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "indian food"
+    },
+    {
+      "id": "gallery-4",
+      "description": "Happy Customers",
+      "imageUrl": "https://images.unsplash.com/photo-1519671282429-b44660ead0a7?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw4fHxwZW9wbGUlMjBlYXRpbmd8ZW58MHx8fHwxNzU5MjQ4MjI5fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "people eating"
+    },
+    {
+      "id": "gallery-5",
+      "description": "Our Chef in Action",
+      "imageUrl": "https://images.unsplash.com/photo-1581349485608-9469926a8e5e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8Y2hlZiUyMGNvb2tpbmd8ZW58MHx8fHwxNzU5MzIxMDMwfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "chef cooking"
+    },
+    {
+      "id": "gallery-6",
+      "description": "Traditional Decor",
+      "imageUrl": "https://images.unsplash.com/photo-1725546891194-5d8d82d38ca2?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHxpbmRpYW4lMjBkZWNvcnxlbnwwfHx8fDE3NTkzNTExMDl8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "indian decor"
+    },
+    {
+      "id": "gallery-7",
+      "description": "Fresh Ingredients",
+      "imageUrl": "https://images.unsplash.com/photo-1592924802543-809bfeee53fb?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw0fHxmcmVzaCUyMHZlZ2V0YWJsZXN8ZW58MHx8fHwxNzU5MjkyMjg4fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "fresh vegetables"
+    },
+    {
+      "id": "gallery-8",
+      "description": "Piping Hot Bhakri",
+      "imageUrl": "https://images.unsplash.com/photo-1644930243012-b191e01a4fe3?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHxpbmRpYW4lMjBicmVhZHxlbnwwfHx8fDE3NTkzNTExMDl8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "indian bread"
+    }
+  ]
 }

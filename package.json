@@ -1,7 +1,7 @@
 {
-  "name": "nextn",
+  "name": "maha-zaika",
   "version": "0.1.0",
-  "private": true,
+  "description": "A premium, elegant, restaurant portfolio website for an authentic Maharashtrian Family Restaurant.",
   "scripts": {
     "dev": "next dev --turbopack -p 9002",
     "genkit:dev": "genkit start -- tsx src/ai/dev.ts",
