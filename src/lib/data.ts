@@ -6,6 +6,7 @@ type LocalizedString = {
 
 export const navLinks = [
   { href: '#about', label: { en: 'About Us', mr: 'आमच्याबद्दल' } },
+  { href: '#gallery', label: { en: 'Gallery', mr: 'गॅलरी' } },
   { href: '#menu', label: { en: 'Menu', mr: 'मेनू' } },
   { href: '#location', label: { en: 'Location', mr: 'स्थान' } },
   { href: '#contact', label: { en: 'Contact', mr: 'संपर्क' } },
