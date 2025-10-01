@@ -69,8 +69,9 @@ export const contactInfo = {
     title: { en: 'Visit or Call Us', mr: 'भेट द्या किंवा कॉल करा' },
     addressTitle: { en: 'Our Address', mr: 'आमचा पत्ता' },
     address: { en: '123 Main Road, Hingoli, Maharashtra 431513', mr: '१२३ मुख्य रस्ता, हिंगोली, महाराष्ट्र ४३१५१३' },
-    phone: '919876543210',
-    whatsapp: '919876543210',
+    phone: '9421382777',
+    whatsapp: '919421382777',
+    email: 'rashmin.pachlegaonkar@gmail.com',
     call: { en: 'Call Us', mr: 'कॉल करा' },
     whatsappLabel: { en: 'WhatsApp Us', mr: 'व्हाट्सएप करा' },
 };
@@ -90,5 +91,8 @@ export const contactFormContent = {
     phonePlaceholder: { en: '10-digit mobile number', mr: '१०-अंकी मोबाइल नंबर' },
     date: { en: 'Date', mr: 'तारीख' },
     time: { en: 'Time', mr: 'वेळ' },
+    guests: { en: 'Guests', mr: 'पाहुणे' },
+    message: { en: 'Message (Optional)', mr: 'संदेश (ऐच्छिक)' },
+    messagePlaceholder: { en: 'e.g. Special requests, occasion, etc.', mr: 'उदा. विशेष विनंत्या, प्रसंग, इ.' },
     button: { en: 'Submit Booking', mr: 'बुकिंग सबमिट करा' },
 };

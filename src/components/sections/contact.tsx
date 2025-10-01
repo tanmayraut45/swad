@@ -17,12 +17,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/context/language-context';
 import { contactInfo, contactFormContent, openingHours } from '@/lib/data';
-import { Clock, MapPin, Phone, MessageCircle, Map } from 'lucide-react';
+import { Clock, MapPin, Phone, MessageCircle, Mail, Map } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { Calendar as CalendarIcon } from 'lucide-react';
+import { Textarea } from '../ui/textarea';
 
 const formSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters.'),
@@ -31,6 +32,8 @@ const formSchema = z.object({
     required_error: "A date for booking is required.",
   }),
   time: z.string().min(1, 'Please select a time.'),
+  guests: z.string().min(1, "Please enter the number of guests."),
+  message: z.string().optional(),
 });
 
 const ContactSection = () => {
@@ -43,14 +46,17 @@ const ContactSection = () => {
       name: '',
       phone: '',
       time: '19:00',
+      guests: '2',
+      message: '',
     },
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     console.log(values);
     toast({
-      title: 'Booking Submitted!',
-      description: "We've received your request and will contact you shortly to confirm.",
+      title: 'Request Sent!',
+      description: "We're processing your booking. For parties of 10+, please call or WhatsApp the owner directly due to high demand.",
+      duration: 9000,
     });
     form.reset();
   }
@@ -69,33 +75,35 @@ const ContactSection = () => {
             <CardContent>
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                  <FormField
-                    control={form.control}
-                    name="name"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{contactFormContent.name[language]}</FormLabel>
-                        <FormControl>
-                          <Input placeholder={contactFormContent.namePlaceholder[language]} {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="phone"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{contactFormContent.phone[language]}</FormLabel>
-                        <FormControl>
-                          <Input placeholder={contactFormContent.phonePlaceholder[language]} {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
                   <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                    <FormField
+                      control={form.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{contactFormContent.name[language]}</FormLabel>
+                          <FormControl>
+                            <Input placeholder={contactFormContent.namePlaceholder[language]} {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="phone"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{contactFormContent.phone[language]}</FormLabel>
+                          <FormControl>
+                            <Input placeholder={contactFormContent.phonePlaceholder[language]} {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 gap-6 sm:grid-cols-3">
                     <FormField
                       control={form.control}
                       name="date"
@@ -150,7 +158,37 @@ const ContactSection = () => {
                         </FormItem>
                       )}
                     />
+                     <FormField
+                      control={form.control}
+                      name="guests"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{contactFormContent.guests[language]}</FormLabel>
+                          <FormControl>
+                            <Input type="number" min="1" placeholder="2" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   </div>
+                   <FormField
+                    control={form.control}
+                    name="message"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{contactFormContent.message[language]}</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder={contactFormContent.messagePlaceholder[language]}
+                            className="resize-none"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                   <Button type="submit" className="w-full" size="lg">
                     {contactFormContent.button[language]}
                   </Button>
@@ -168,6 +206,13 @@ const ContactSection = () => {
                     <div>
                       <h4 className="font-semibold">{contactInfo.addressTitle[language]}</h4>
                       <p className="text-muted-foreground">{contactInfo.address[language]}</p>
+                    </div>
+                  </div>
+                   <div className="flex items-start gap-4">
+                    <Mail className="h-6 w-6 text-primary" />
+                    <div>
+                      <h4 className="font-semibold">{language === 'en' ? 'Email Address' : 'ईमेल पत्ता'}</h4>
+                      <a href={`mailto:${contactInfo.email}`} className="text-muted-foreground hover:text-primary">{contactInfo.email}</a>
                     </div>
                   </div>
                   <div className="flex items-start gap-4">
