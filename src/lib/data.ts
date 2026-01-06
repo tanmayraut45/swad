@@ -69,7 +69,7 @@ export const menuItems: MenuItem[] = [
 export const contactInfo = {
     title: { en: 'Visit or Call Us', mr: 'भेट द्या किंवा कॉल करा' },
     addressTitle: { en: 'Our Address', mr: 'आमचा पत्ता' },
-    address: { en: '123 Main Road, Hingoli, Maharashtra 431513', mr: '१२३ मुख्य रस्ता, हिंगोली, महाराष्ट्र ४३१५१३' },
+    address: { en: 'SWAD Family Restaurants, Pachlegaonkar Complex, Parbhani - Jintur Rd, Jintur, Maharashtra 431509', mr: 'स्वाद फॅमिली रेस्टॉरंट्स, पाचलेगावकर कॉम्प्लेक्स, परभणी - जिंतूर रोड, जिंतूर, महाराष्ट्र ४३१५०९' },
     phone: '9421382777',
     whatsapp: '919421382777',
     email: 'rashmin.pachlegaonkar@gmail.com',

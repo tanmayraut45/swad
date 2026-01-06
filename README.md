@@ -1,5 +1,20 @@
-# Firebase Studio
+# Swad Restaurant
 
-This is a NextJS starter in Firebase Studio.
+A premium, elegant restaurant portfolio website for Swad Restaurant and Udappi Center.
 
-To get started, take a look at src/app/page.tsx.
+## Getting Started
+
+```bash
+npm install
+npm run dev
+```
+
+Open [http://localhost:9002](http://localhost:9002) to view the website.
+
+## Tech Stack
+
+- Next.js 15
+- React 18
+- TypeScript
+- Tailwind CSS
+- Radix UI / shadcn/ui
