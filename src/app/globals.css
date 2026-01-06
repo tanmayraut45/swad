@@ -25,7 +25,7 @@
     --ring: 145 52% 55%;
     --radius: 0.5rem;
   }
- 
+
   .dark {
     --background: 0 10% 10%;
     --foreground: 40 100% 97%;
@@ -48,7 +48,7 @@
     --ring: 145 52% 60%;
   }
 }
- 
+
 @layer base {
   * {
     @apply border-border;
@@ -67,4 +67,35 @@
   .section-padding {
     @apply px-6 py-16 md:px-12 md:py-24 lg:px-24;
   }
+}
+
+/* Custom Scrollbar for Premium Feel */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--primary) / 0.3);
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--primary) / 0.5);
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--primary) / 0.3) hsl(var(--muted));
+}
+
+/* Smooth transitions for interactive elements */
+a,
+button {
+  transition: color 0.2s ease, background-color 0.2s ease, transform 0.2s ease,
+    box-shadow 0.2s ease;
 }

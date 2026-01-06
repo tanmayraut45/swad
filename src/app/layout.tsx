@@ -7,6 +7,7 @@ import Footer from "@/components/layout/footer";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://swad-restaurant.netlify.app"), // Update with your actual domain
   title: "Swad Restaurant | Authentic Indian Cuisine",
   description:
     "Experience the rich and diverse flavors of authentic Indian cuisine at Swad Restaurant and Udappi Center.",
