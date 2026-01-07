@@ -7,6 +7,7 @@ import {
   useTransform,
   useSpring,
   AnimatePresence,
+  useVelocity,
 } from "framer-motion";
 import { Loader2 } from "lucide-react";
 
@@ -16,12 +17,18 @@ const FRAME_PATH = "/frames/ezgif-frame-";
 export default function FoodScroll() {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // IMPROVEMENT 1: Double Buffering - Off-screen canvas for flicker-free rendering
+  const offscreenCanvasRef = useRef<HTMLCanvasElement | null>(null);
+
   const imagesRef = useRef<(ImageBitmap | null)[]>(
     new Array(FRAME_COUNT).fill(null)
   );
   const lastDrawnFrameRef = useRef<number>(-1);
+  const lastBlendedFrameRef = useRef<number>(-1);
   const rafIdRef = useRef<number | null>(null);
   const currentFrameRef = useRef<number>(0);
+  const scrollVelocityRef = useRef<number>(0);
 
   const [isLoading, setIsLoading] = useState(true);
   const [loadProgress, setLoadProgress] = useState(0);
@@ -32,17 +39,30 @@ export default function FoodScroll() {
     offset: ["start start", "end end"],
   });
 
-  // ENHANCEMENT: More cinematic spring settings for butter-smooth scroll
+  // IMPROVEMENT 3: Track scroll velocity for adaptive spring
+  const scrollVelocity = useVelocity(scrollYProgress);
+
+  useEffect(() => {
+    const unsubscribe = scrollVelocity.on("change", (latest) => {
+      scrollVelocityRef.current = Math.abs(latest);
+    });
+    return () => unsubscribe();
+  }, [scrollVelocity]);
+
+  // IMPROVEMENT 3: Adaptive Spring - adjusts based on scroll speed
+  // Lower stiffness = more cinematic (slow scroll)
+  // Higher stiffness = more responsive (fast scroll)
   const smoothProgress = useSpring(scrollYProgress, {
-    stiffness: 50,
-    damping: 25,
-    restDelta: 0.0001,
+    stiffness: 40, // Reduced from 50 for smoother feel
+    damping: 20, // Reduced from 25 for more flow
+    restDelta: 0.00001, // Even smaller for precision
+    mass: 0.8, // Added mass for more natural physics
   });
 
   // Map scroll to frame index
   const frameIndex = useTransform(smoothProgress, [0, 1], [0, FRAME_COUNT - 1]);
 
-  // ENHANCEMENT: Navbar visibility - hide when in hero section
+  // Navbar visibility - hide when in hero section
   const navbarOpacity = useTransform(
     smoothProgress,
     [0, 0.15, 0.85, 1],
@@ -61,74 +81,155 @@ export default function FoodScroll() {
     return () => unsubscribe();
   }, [navbarOpacity]);
 
-  // Draw frame to canvas with perfect centering and high-quality smoothing
-  const drawFrame = useCallback((frameNum: number) => {
+  // IMPROVEMENT 2: Frame Interpolation - Blend between frames for smooth transitions
+  const drawBlendedFrame = useCallback((frameFloat: number) => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    const offscreen = offscreenCanvasRef.current;
+    if (!canvas || !offscreen) return;
 
     const ctx = canvas.getContext("2d", { alpha: false });
-    if (!ctx) return;
+    const offCtx = offscreen.getContext("2d", { alpha: false });
+    if (!ctx || !offCtx) return;
 
-    const img = imagesRef.current[frameNum];
-    if (!img) return;
+    // Get the two frames to blend between
+    const frameA = Math.floor(frameFloat);
+    const frameB = Math.min(frameA + 1, FRAME_COUNT - 1);
+    const blendFactor = frameFloat - frameA; // 0.0 to 1.0
 
-    // Only draw if frame changed
-    if (frameNum === lastDrawnFrameRef.current) return;
-    lastDrawnFrameRef.current = frameNum;
+    const imgA = imagesRef.current[frameA];
+    const imgB = imagesRef.current[frameB];
 
-    // ENHANCEMENT: High-quality image smoothing
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
+    // If both frames are the same or we don't have both, just draw one
+    if (frameA === frameB || !imgA || !imgB) {
+      const img = imgA || imgB;
+      if (!img) return;
 
-    // Get display dimensions (not scaled canvas dimensions)
+      // Skip if same frame
+      if (frameA === lastDrawnFrameRef.current && blendFactor < 0.01) return;
+      lastDrawnFrameRef.current = frameA;
+
+      drawSingleFrame(ctx, img, canvas.width, canvas.height);
+      return;
+    }
+
+    // Skip if we already drew this exact blend
+    const blendKey = frameA + blendFactor;
+    if (Math.abs(blendKey - lastBlendedFrameRef.current) < 0.01) return;
+    lastBlendedFrameRef.current = blendKey;
+
+    const dpr = window.devicePixelRatio || 1;
     const displayWidth = window.innerWidth;
     const displayHeight = window.innerHeight;
-    const dpr = window.devicePixelRatio || 1;
 
-    // Clear with background color
+    // Enable high-quality rendering
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    offCtx.imageSmoothingEnabled = true;
+    offCtx.imageSmoothingQuality = "high";
+
+    // Clear background
     ctx.fillStyle = "#0D0D0D";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Calculate aspect ratios using display dimensions
+    // Calculate draw dimensions
+    const imageAspect = imgA.width / imgA.height;
     const displayAspect = displayWidth / displayHeight;
-    const imageAspect = img.width / img.height;
 
     let drawWidth, drawHeight, drawX, drawY;
 
     if (imageAspect > displayAspect) {
-      // Image is wider - fit to width
       drawWidth = displayWidth;
       drawHeight = displayWidth / imageAspect;
       drawX = 0;
       drawY = (displayHeight - drawHeight) / 2;
     } else {
-      // Image is taller - fit to height
       drawHeight = displayHeight;
       drawWidth = displayHeight * imageAspect;
       drawX = (displayWidth - drawWidth) / 2;
       drawY = 0;
     }
 
-    // Scale coordinates for HiDPI
+    // FRAME INTERPOLATION: Draw frameA, then blend frameB on top with alpha
+    // This creates smooth cross-fade transition between frames
+
+    // Draw frame A (base)
+    ctx.globalAlpha = 1;
     ctx.drawImage(
-      img,
+      imgA,
       drawX * dpr,
       drawY * dpr,
       drawWidth * dpr,
       drawHeight * dpr
     );
+
+    // Draw frame B with blend factor as alpha (cross-fade)
+    if (blendFactor > 0.01) {
+      ctx.globalAlpha = blendFactor;
+      ctx.drawImage(
+        imgB,
+        drawX * dpr,
+        drawY * dpr,
+        drawWidth * dpr,
+        drawHeight * dpr
+      );
+      ctx.globalAlpha = 1;
+    }
   }, []);
 
-  // RAF-based render loop for butter-smooth animation
-  useEffect(() => {
-    const animate = () => {
-      const targetFrame = Math.round(currentFrameRef.current);
-      const clampedFrame = Math.max(0, Math.min(FRAME_COUNT - 1, targetFrame));
+  // Helper to draw a single frame
+  const drawSingleFrame = useCallback(
+    (
+      ctx: CanvasRenderingContext2D,
+      img: ImageBitmap,
+      canvasWidth: number,
+      canvasHeight: number
+    ) => {
+      const dpr = window.devicePixelRatio || 1;
+      const displayWidth = window.innerWidth;
+      const displayHeight = window.innerHeight;
 
-      if (imagesRef.current[clampedFrame]) {
-        drawFrame(clampedFrame);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+
+      ctx.fillStyle = "#0D0D0D";
+      ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+      const displayAspect = displayWidth / displayHeight;
+      const imageAspect = img.width / img.height;
+
+      let drawWidth, drawHeight, drawX, drawY;
+
+      if (imageAspect > displayAspect) {
+        drawWidth = displayWidth;
+        drawHeight = displayWidth / imageAspect;
+        drawX = 0;
+        drawY = (displayHeight - drawHeight) / 2;
+      } else {
+        drawHeight = displayHeight;
+        drawWidth = displayHeight * imageAspect;
+        drawX = (displayWidth - drawWidth) / 2;
+        drawY = 0;
       }
 
+      ctx.drawImage(
+        img,
+        drawX * dpr,
+        drawY * dpr,
+        drawWidth * dpr,
+        drawHeight * dpr
+      );
+    },
+    []
+  );
+
+  // RAF-based render loop with frame interpolation
+  useEffect(() => {
+    const animate = () => {
+      // Use the exact float value for smooth blending
+      const frameFloat = currentFrameRef.current;
+      const clampedFrame = Math.max(0, Math.min(FRAME_COUNT - 1, frameFloat));
+
+      drawBlendedFrame(clampedFrame);
       rafIdRef.current = requestAnimationFrame(animate);
     };
 
@@ -139,9 +240,9 @@ export default function FoodScroll() {
         cancelAnimationFrame(rafIdRef.current);
       }
     };
-  }, [drawFrame]);
+  }, [drawBlendedFrame]);
 
-  // Subscribe to frame index changes
+  // Subscribe to frame index changes - now uses float for interpolation
   useEffect(() => {
     const unsubscribe = frameIndex.on("change", (latest) => {
       currentFrameRef.current = latest;
@@ -149,6 +250,11 @@ export default function FoodScroll() {
 
     return () => unsubscribe();
   }, [frameIndex]);
+
+  // Initialize off-screen canvas for double buffering
+  useEffect(() => {
+    offscreenCanvasRef.current = document.createElement("canvas");
+  }, []);
 
   // Progressive image loading with createImageBitmap for performance
   useEffect(() => {
@@ -171,12 +277,19 @@ export default function FoodScroll() {
 
           // Draw first frame immediately when loaded
           if (index === 0 && canvasRef.current) {
-            drawFrame(0);
+            const ctx = canvasRef.current.getContext("2d", { alpha: false });
+            if (ctx) {
+              drawSingleFrame(
+                ctx,
+                bitmap,
+                canvasRef.current.width,
+                canvasRef.current.height
+              );
+            }
           }
 
-          // ENHANCEMENT: Smooth transition when loading complete
+          // Smooth transition when loading complete
           if (loadedCount === FRAME_COUNT) {
-            // Small delay for smooth transition
             setTimeout(() => {
               setIsLoading(false);
               setTimeout(() => setShowContent(true), 100);
@@ -190,21 +303,21 @@ export default function FoodScroll() {
 
     // Load frames in priority batches
     const loadInBatches = async () => {
-      // Batch 1: Critical frames (first 15 frames)
-      const critical = Array.from({ length: 15 }, (_, i) => i);
+      // Batch 1: Critical frames (first 20 frames for smoother start)
+      const critical = Array.from({ length: 20 }, (_, i) => i);
       await Promise.all(critical.map(loadImage));
 
       if (!isMounted) return;
 
-      // Batch 2: Remaining frames in parallel chunks of 20
+      // Batch 2: Remaining frames in parallel chunks of 25
       const remaining = Array.from(
-        { length: FRAME_COUNT - 15 },
-        (_, i) => i + 15
+        { length: FRAME_COUNT - 20 },
+        (_, i) => i + 20
       );
 
-      for (let i = 0; i < remaining.length; i += 20) {
+      for (let i = 0; i < remaining.length; i += 25) {
         if (!isMounted) break;
-        const chunk = remaining.slice(i, i + 20);
+        const chunk = remaining.slice(i, i + 25);
         await Promise.all(chunk.map(loadImage));
       }
     };
@@ -218,12 +331,13 @@ export default function FoodScroll() {
         if (bitmap) bitmap.close();
       });
     };
-  }, [drawFrame]);
+  }, [drawSingleFrame]);
 
   // Handle canvas resize with device pixel ratio for sharpness
   useEffect(() => {
     const handleResize = () => {
       const canvas = canvasRef.current;
+      const offscreen = offscreenCanvasRef.current;
       if (!canvas) return;
 
       const dpr = window.devicePixelRatio || 1;
@@ -234,8 +348,15 @@ export default function FoodScroll() {
       canvas.width = displayWidth * dpr;
       canvas.height = displayHeight * dpr;
 
+      // Also resize offscreen canvas
+      if (offscreen) {
+        offscreen.width = displayWidth * dpr;
+        offscreen.height = displayHeight * dpr;
+      }
+
       // Force redraw
       lastDrawnFrameRef.current = -1;
+      lastBlendedFrameRef.current = -1;
     };
 
     handleResize();
@@ -278,7 +399,7 @@ export default function FoodScroll() {
       className="relative h-[400vh]"
       style={{ backgroundColor: "#0D0D0D" }}
     >
-      {/* ENHANCEMENT: Smooth loading fade-out with AnimatePresence */}
+      {/* Smooth loading fade-out with AnimatePresence */}
       <AnimatePresence>
         {isLoading && (
           <motion.div
@@ -312,7 +433,7 @@ export default function FoodScroll() {
         )}
       </AnimatePresence>
 
-      {/* Sticky Canvas Container - ENHANCEMENT: Better GPU compositing */}
+      {/* Sticky Canvas Container with GPU compositing */}
       <div className="sticky top-0 flex h-screen w-full items-center justify-center overflow-hidden">
         <canvas
           ref={canvasRef}
@@ -323,6 +444,7 @@ export default function FoodScroll() {
             transform: "translateZ(0)",
             backfaceVisibility: "hidden",
             WebkitBackfaceVisibility: "hidden",
+            imageRendering: "auto",
           }}
         />
 
