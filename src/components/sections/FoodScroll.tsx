@@ -1,182 +1,88 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import {
-  motion,
-  useScroll,
-  useTransform,
-  useSpring,
-  AnimatePresence,
-  useVelocity,
-} from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Loader2 } from "lucide-react";
 
 const FRAME_COUNT = 120;
 const FRAME_PATH = "/frames/ezgif-frame-";
 
+// ============================================================================
+// PERFORMANCE UTILITIES - Vanilla JS for maximum smoothness
+// ============================================================================
+
+// High-performance lerp (linear interpolation) for smooth scroll
+const lerp = (start: number, end: number, factor: number): number =>
+  start + (end - start) * factor;
+
+// Clamp utility
+const clamp = (value: number, min: number, max: number): number =>
+  Math.max(min, Math.min(max, value));
+
+// Map a value from one range to another
+const mapRange = (
+  value: number,
+  inMin: number,
+  inMax: number,
+  outMin: number,
+  outMax: number
+): number => {
+  const clampedValue = clamp(value, inMin, inMax);
+  return (
+    outMin + ((clampedValue - inMin) / (inMax - inMin)) * (outMax - outMin)
+  );
+};
+
 export default function FoodScroll() {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  // IMPROVEMENT 1: Double Buffering - Off-screen canvas for flicker-free rendering
   const offscreenCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const imagesRef = useRef<(ImageBitmap | null)[]>(
     new Array(FRAME_COUNT).fill(null)
   );
   const lastDrawnFrameRef = useRef<number>(-1);
-  const lastBlendedFrameRef = useRef<number>(-1);
   const rafIdRef = useRef<number | null>(null);
-  const currentFrameRef = useRef<number>(0);
-  const scrollVelocityRef = useRef<number>(0);
+
+  // ============================================================================
+  // VANILLA SCROLL STATE - No Framer Motion for scroll tracking!
+  // ============================================================================
+  const targetProgressRef = useRef<number>(0);
+  const smoothProgressRef = useRef<number>(0);
+  const velocityRef = useRef<number>(0);
+  const lastProgressRef = useRef<number>(0);
+  const lastTimeRef = useRef<number>(performance.now());
 
   const [isLoading, setIsLoading] = useState(true);
   const [loadProgress, setLoadProgress] = useState(0);
   const [showContent, setShowContent] = useState(false);
 
-  const { scrollYProgress } = useScroll({
-    target: containerRef,
-    offset: ["start start", "end end"],
-  });
+  // Text opacity states - updated via RAF with threshold checks
+  const [introOpacity, setIntroOpacity] = useState(1);
+  const [introY, setIntroY] = useState(0);
+  const [story1Opacity, setStory1Opacity] = useState(0);
+  const [story1X, setStory1X] = useState(-30);
+  const [ctaOpacity, setCtaOpacity] = useState(0);
+  const [ctaScale, setCtaScale] = useState(0.95);
 
-  // IMPROVEMENT 3: Track scroll velocity for adaptive spring
-  const scrollVelocity = useVelocity(scrollYProgress);
+  // ============================================================================
+  // GET RAW SCROLL PROGRESS (0-1) - Vanilla JS
+  // ============================================================================
+  const getScrollProgress = useCallback((): number => {
+    const container = containerRef.current;
+    if (!container) return 0;
 
-  useEffect(() => {
-    const unsubscribe = scrollVelocity.on("change", (latest) => {
-      scrollVelocityRef.current = Math.abs(latest);
-    });
-    return () => unsubscribe();
-  }, [scrollVelocity]);
+    const rect = container.getBoundingClientRect();
+    const scrollableHeight = container.offsetHeight - window.innerHeight;
+    if (scrollableHeight <= 0) return 0;
 
-  // IMPROVEMENT 3: Adaptive Spring - adjusts based on scroll speed
-  // Lower stiffness = more cinematic (slow scroll)
-  // Higher stiffness = more responsive (fast scroll)
-  const smoothProgress = useSpring(scrollYProgress, {
-    stiffness: 40, // Reduced from 50 for smoother feel
-    damping: 20, // Reduced from 25 for more flow
-    restDelta: 0.00001, // Even smaller for precision
-    mass: 0.8, // Added mass for more natural physics
-  });
-
-  // Map scroll to frame index
-  const frameIndex = useTransform(smoothProgress, [0, 1], [0, FRAME_COUNT - 1]);
-
-  // Navbar visibility - hide when in hero section
-  const navbarOpacity = useTransform(
-    smoothProgress,
-    [0, 0.15, 0.85, 1],
-    [0, 0, 0, 1]
-  );
-
-  useEffect(() => {
-    const unsubscribe = navbarOpacity.on("change", (latest) => {
-      const header = document.querySelector("header");
-      if (header) {
-        (header as HTMLElement).style.opacity = String(latest);
-        (header as HTMLElement).style.pointerEvents =
-          latest < 0.5 ? "none" : "auto";
-      }
-    });
-    return () => unsubscribe();
-  }, [navbarOpacity]);
-
-  // IMPROVEMENT 2: Frame Interpolation - Blend between frames for smooth transitions
-  const drawBlendedFrame = useCallback((frameFloat: number) => {
-    const canvas = canvasRef.current;
-    const offscreen = offscreenCanvasRef.current;
-    if (!canvas || !offscreen) return;
-
-    const ctx = canvas.getContext("2d", { alpha: false });
-    const offCtx = offscreen.getContext("2d", { alpha: false });
-    if (!ctx || !offCtx) return;
-
-    // Get the two frames to blend between
-    const frameA = Math.floor(frameFloat);
-    const frameB = Math.min(frameA + 1, FRAME_COUNT - 1);
-    const blendFactor = frameFloat - frameA; // 0.0 to 1.0
-
-    const imgA = imagesRef.current[frameA];
-    const imgB = imagesRef.current[frameB];
-
-    // If both frames are the same or we don't have both, just draw one
-    if (frameA === frameB || !imgA || !imgB) {
-      const img = imgA || imgB;
-      if (!img) return;
-
-      // Skip if same frame
-      if (frameA === lastDrawnFrameRef.current && blendFactor < 0.01) return;
-      lastDrawnFrameRef.current = frameA;
-
-      drawSingleFrame(ctx, img, canvas.width, canvas.height);
-      return;
-    }
-
-    // Skip if we already drew this exact blend
-    const blendKey = frameA + blendFactor;
-    if (Math.abs(blendKey - lastBlendedFrameRef.current) < 0.01) return;
-    lastBlendedFrameRef.current = blendKey;
-
-    const dpr = window.devicePixelRatio || 1;
-    const displayWidth = window.innerWidth;
-    const displayHeight = window.innerHeight;
-
-    // Enable high-quality rendering
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
-    offCtx.imageSmoothingEnabled = true;
-    offCtx.imageSmoothingQuality = "high";
-
-    // Clear background
-    ctx.fillStyle = "#0D0D0D";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // Calculate draw dimensions
-    const imageAspect = imgA.width / imgA.height;
-    const displayAspect = displayWidth / displayHeight;
-
-    let drawWidth, drawHeight, drawX, drawY;
-
-    if (imageAspect > displayAspect) {
-      drawWidth = displayWidth;
-      drawHeight = displayWidth / imageAspect;
-      drawX = 0;
-      drawY = (displayHeight - drawHeight) / 2;
-    } else {
-      drawHeight = displayHeight;
-      drawWidth = displayHeight * imageAspect;
-      drawX = (displayWidth - drawWidth) / 2;
-      drawY = 0;
-    }
-
-    // FRAME INTERPOLATION: Draw frameA, then blend frameB on top with alpha
-    // This creates smooth cross-fade transition between frames
-
-    // Draw frame A (base)
-    ctx.globalAlpha = 1;
-    ctx.drawImage(
-      imgA,
-      drawX * dpr,
-      drawY * dpr,
-      drawWidth * dpr,
-      drawHeight * dpr
-    );
-
-    // Draw frame B with blend factor as alpha (cross-fade)
-    if (blendFactor > 0.01) {
-      ctx.globalAlpha = blendFactor;
-      ctx.drawImage(
-        imgB,
-        drawX * dpr,
-        drawY * dpr,
-        drawWidth * dpr,
-        drawHeight * dpr
-      );
-      ctx.globalAlpha = 1;
-    }
+    const progress = -rect.top / scrollableHeight;
+    return clamp(progress, 0, 1);
   }, []);
 
-  // Helper to draw a single frame
+  // ============================================================================
+  // DRAW SINGLE FRAME (for fast scroll - no blending)
+  // ============================================================================
   const drawSingleFrame = useCallback(
     (
       ctx: CanvasRenderingContext2D,
@@ -222,14 +128,233 @@ export default function FoodScroll() {
     []
   );
 
-  // RAF-based render loop with frame interpolation
-  useEffect(() => {
-    const animate = () => {
-      // Use the exact float value for smooth blending
-      const frameFloat = currentFrameRef.current;
-      const clampedFrame = Math.max(0, Math.min(FRAME_COUNT - 1, frameFloat));
+  // ============================================================================
+  // DRAW FRAME BY INDEX (for fast scroll - skip blending)
+  // ============================================================================
+  const drawFrameByIndex = useCallback(
+    (frameIndex: number) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
 
-      drawBlendedFrame(clampedFrame);
+      const ctx = canvas.getContext("2d", { alpha: false });
+      if (!ctx) return;
+
+      const roundedIndex = Math.round(clamp(frameIndex, 0, FRAME_COUNT - 1));
+      const img = imagesRef.current[roundedIndex];
+
+      if (!img) return;
+      if (roundedIndex === lastDrawnFrameRef.current) return;
+
+      lastDrawnFrameRef.current = roundedIndex;
+      drawSingleFrame(ctx, img, canvas.width, canvas.height);
+    },
+    [drawSingleFrame]
+  );
+
+  // ============================================================================
+  // DRAW BLENDED FRAME (for slow scroll - smooth interpolation)
+  // ============================================================================
+  const drawBlendedFrame = useCallback(
+    (frameFloat: number) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const ctx = canvas.getContext("2d", { alpha: false });
+      if (!ctx) return;
+
+      const frameA = Math.floor(frameFloat);
+      const frameB = Math.min(frameA + 1, FRAME_COUNT - 1);
+      const blendFactor = frameFloat - frameA;
+
+      const imgA = imagesRef.current[frameA];
+      const imgB = imagesRef.current[frameB];
+
+      // If both frames are the same or we don't have both, just draw one
+      if (frameA === frameB || !imgA || !imgB) {
+        const img = imgA || imgB;
+        if (!img) return;
+
+        if (frameA === lastDrawnFrameRef.current && blendFactor < 0.01) return;
+        lastDrawnFrameRef.current = frameA;
+
+        drawSingleFrame(ctx, img, canvas.width, canvas.height);
+        return;
+      }
+
+      const dpr = window.devicePixelRatio || 1;
+      const displayWidth = window.innerWidth;
+      const displayHeight = window.innerHeight;
+
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+
+      ctx.fillStyle = "#0D0D0D";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const imageAspect = imgA.width / imgA.height;
+      const displayAspect = displayWidth / displayHeight;
+
+      let drawWidth, drawHeight, drawX, drawY;
+
+      if (imageAspect > displayAspect) {
+        drawWidth = displayWidth;
+        drawHeight = displayWidth / imageAspect;
+        drawX = 0;
+        drawY = (displayHeight - drawHeight) / 2;
+      } else {
+        drawHeight = displayHeight;
+        drawWidth = displayHeight * imageAspect;
+        drawX = (displayWidth - drawWidth) / 2;
+        drawY = 0;
+      }
+
+      // Draw frame A (base)
+      ctx.globalAlpha = 1;
+      ctx.drawImage(
+        imgA,
+        drawX * dpr,
+        drawY * dpr,
+        drawWidth * dpr,
+        drawHeight * dpr
+      );
+
+      // Blend frame B on top with alpha
+      if (blendFactor > 0.01) {
+        ctx.globalAlpha = blendFactor;
+        ctx.drawImage(
+          imgB,
+          drawX * dpr,
+          drawY * dpr,
+          drawWidth * dpr,
+          drawHeight * dpr
+        );
+        ctx.globalAlpha = 1;
+      }
+
+      lastDrawnFrameRef.current = frameA + blendFactor;
+    },
+    [drawSingleFrame]
+  );
+
+  // ============================================================================
+  // MAIN ANIMATION LOOP - Pure Vanilla JS, No Framer Motion!
+  // ============================================================================
+  useEffect(() => {
+    const animate = (currentTime: number) => {
+      const deltaTime = Math.min(
+        (currentTime - lastTimeRef.current) / 1000,
+        0.1
+      );
+      lastTimeRef.current = currentTime;
+
+      // Get raw scroll progress
+      const rawProgress = getScrollProgress();
+      targetProgressRef.current = rawProgress;
+
+      // Calculate velocity for frame skipping decision
+      const progressDelta = Math.abs(rawProgress - lastProgressRef.current);
+      velocityRef.current = progressDelta / Math.max(deltaTime, 0.001);
+      lastProgressRef.current = rawProgress;
+
+      // ========================================
+      // SMOOTH INTERPOLATION with adaptive lerp
+      // Fast scroll = higher lerp (responsive)
+      // Slow scroll = lower lerp (cinematic)
+      // ========================================
+      const isHighVelocity = velocityRef.current > 0.8;
+      const lerpFactor = isHighVelocity ? 0.2 : 0.1;
+
+      smoothProgressRef.current = lerp(
+        smoothProgressRef.current,
+        targetProgressRef.current,
+        lerpFactor
+      );
+
+      // Snap when very close to target
+      if (
+        Math.abs(smoothProgressRef.current - targetProgressRef.current) < 0.0001
+      ) {
+        smoothProgressRef.current = targetProgressRef.current;
+      }
+
+      // Calculate frame index from smooth progress
+      const frameFloat = smoothProgressRef.current * (FRAME_COUNT - 1);
+      const clampedFrame = clamp(frameFloat, 0, FRAME_COUNT - 1);
+
+      // ========================================
+      // FRAME SKIPPING: Fast scroll = no blend
+      // ========================================
+      if (isHighVelocity) {
+        drawFrameByIndex(clampedFrame);
+      } else {
+        drawBlendedFrame(clampedFrame);
+      }
+
+      // ========================================
+      // UPDATE TEXT OPACITIES (with thresholds)
+      // Only update state if changed significantly
+      // ========================================
+      if (showContent) {
+        const progress = smoothProgressRef.current;
+
+        // INTRO: visible 0-12%, fades out 12-22%
+        const introOpacityNew =
+          progress < 0.12
+            ? 1
+            : progress > 0.22
+            ? 0
+            : 1 - (progress - 0.12) / 0.1;
+        const introYNew = mapRange(progress, 0, 0.22, 0, -50);
+
+        // STORY 1: fade in 20-30%, visible 30-55%, fade out 55-65%
+        let story1OpacityNew: number;
+        if (progress < 0.2) {
+          story1OpacityNew = 0;
+        } else if (progress < 0.3) {
+          story1OpacityNew = (progress - 0.2) / 0.1;
+        } else if (progress < 0.55) {
+          story1OpacityNew = 1;
+        } else if (progress < 0.65) {
+          story1OpacityNew = 1 - (progress - 0.55) / 0.1;
+        } else {
+          story1OpacityNew = 0;
+        }
+        const story1XNew = mapRange(story1OpacityNew, 0, 1, -30, 0);
+
+        // CTA: fade in 70-80%, stays visible 80-100%
+        const ctaOpacityNew =
+          progress < 0.7 ? 0 : progress > 0.8 ? 1 : (progress - 0.7) / 0.1;
+        const ctaScaleNew = 0.95 + ctaOpacityNew * 0.05;
+
+        // THRESHOLD UPDATES - Only update if changed > 0.01
+        setIntroOpacity((prev) =>
+          Math.abs(prev - introOpacityNew) > 0.01 ? introOpacityNew : prev
+        );
+        setIntroY((prev) =>
+          Math.abs(prev - introYNew) > 0.5 ? introYNew : prev
+        );
+        setStory1Opacity((prev) =>
+          Math.abs(prev - story1OpacityNew) > 0.01 ? story1OpacityNew : prev
+        );
+        setStory1X((prev) =>
+          Math.abs(prev - story1XNew) > 0.5 ? story1XNew : prev
+        );
+        setCtaOpacity((prev) =>
+          Math.abs(prev - ctaOpacityNew) > 0.01 ? ctaOpacityNew : prev
+        );
+        setCtaScale((prev) =>
+          Math.abs(prev - ctaScaleNew) > 0.005 ? ctaScaleNew : prev
+        );
+
+        // Update navbar visibility
+        const header = document.querySelector("header") as HTMLElement;
+        if (header) {
+          const shouldShow = progress > 0.85;
+          header.style.opacity = shouldShow ? "1" : "0";
+          header.style.pointerEvents = shouldShow ? "auto" : "none";
+        }
+      }
+
       rafIdRef.current = requestAnimationFrame(animate);
     };
 
@@ -240,23 +365,18 @@ export default function FoodScroll() {
         cancelAnimationFrame(rafIdRef.current);
       }
     };
-  }, [drawBlendedFrame]);
+  }, [showContent, getScrollProgress, drawFrameByIndex, drawBlendedFrame]);
 
-  // Subscribe to frame index changes - now uses float for interpolation
-  useEffect(() => {
-    const unsubscribe = frameIndex.on("change", (latest) => {
-      currentFrameRef.current = latest;
-    });
-
-    return () => unsubscribe();
-  }, [frameIndex]);
-
-  // Initialize off-screen canvas for double buffering
+  // ============================================================================
+  // INITIALIZE OFF-SCREEN CANVAS
+  // ============================================================================
   useEffect(() => {
     offscreenCanvasRef.current = document.createElement("canvas");
   }, []);
 
-  // Progressive image loading with createImageBitmap for performance
+  // ============================================================================
+  // PROGRESSIVE IMAGE LOADING
+  // ============================================================================
   useEffect(() => {
     let isMounted = true;
     let loadedCount = 0;
@@ -266,8 +386,6 @@ export default function FoodScroll() {
         const frameNum = String(index + 1).padStart(3, "0");
         const response = await fetch(`${FRAME_PATH}${frameNum}.jpg`);
         const blob = await response.blob();
-
-        // Use createImageBitmap for off-main-thread decoding
         const bitmap = await createImageBitmap(blob);
 
         if (isMounted) {
@@ -275,7 +393,7 @@ export default function FoodScroll() {
           loadedCount++;
           setLoadProgress(Math.floor((loadedCount / FRAME_COUNT) * 100));
 
-          // Draw first frame immediately when loaded
+          // Draw first frame immediately
           if (index === 0 && canvasRef.current) {
             const ctx = canvasRef.current.getContext("2d", { alpha: false });
             if (ctx) {
@@ -288,7 +406,7 @@ export default function FoodScroll() {
             }
           }
 
-          // Smooth transition when loading complete
+          // Complete loading
           if (loadedCount === FRAME_COUNT) {
             setTimeout(() => {
               setIsLoading(false);
@@ -301,15 +419,14 @@ export default function FoodScroll() {
       }
     };
 
-    // Load frames in priority batches
     const loadInBatches = async () => {
-      // Batch 1: Critical frames (first 20 frames for smoother start)
+      // Critical: first 20 frames
       const critical = Array.from({ length: 20 }, (_, i) => i);
       await Promise.all(critical.map(loadImage));
 
       if (!isMounted) return;
 
-      // Batch 2: Remaining frames in parallel chunks of 25
+      // Remaining in chunks of 25
       const remaining = Array.from(
         { length: FRAME_COUNT - 20 },
         (_, i) => i + 20
@@ -326,14 +443,15 @@ export default function FoodScroll() {
 
     return () => {
       isMounted = false;
-      // Clean up bitmaps
       imagesRef.current.forEach((bitmap) => {
         if (bitmap) bitmap.close();
       });
     };
   }, [drawSingleFrame]);
 
-  // Handle canvas resize with device pixel ratio for sharpness
+  // ============================================================================
+  // CANVAS RESIZE HANDLER
+  // ============================================================================
   useEffect(() => {
     const handleResize = () => {
       const canvas = canvasRef.current;
@@ -344,19 +462,15 @@ export default function FoodScroll() {
       const displayWidth = window.innerWidth;
       const displayHeight = window.innerHeight;
 
-      // Set canvas internal resolution for HiDPI
       canvas.width = displayWidth * dpr;
       canvas.height = displayHeight * dpr;
 
-      // Also resize offscreen canvas
       if (offscreen) {
         offscreen.width = displayWidth * dpr;
         offscreen.height = displayHeight * dpr;
       }
 
-      // Force redraw
       lastDrawnFrameRef.current = -1;
-      lastBlendedFrameRef.current = -1;
     };
 
     handleResize();
@@ -364,42 +478,19 @@ export default function FoodScroll() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // Text opacity transforms with smoother easing
-  const intro = useTransform(smoothProgress, [0, 0.12, 0.22], [1, 1, 0]);
-  const introY = useTransform(smoothProgress, [0, 0.22], [0, -50]);
-
-  const story1 = useTransform(
-    smoothProgress,
-    [0.18, 0.28, 0.42, 0.52],
-    [0, 1, 1, 0]
-  );
-  const story1X = useTransform(
-    smoothProgress,
-    [0.18, 0.28, 0.42, 0.52],
-    [-30, 0, 0, -30]
-  );
-
-  const story2 = useTransform(
-    smoothProgress,
-    [0.48, 0.58, 0.72, 0.82],
-    [0, 1, 1, 0]
-  );
-  const story2X = useTransform(
-    smoothProgress,
-    [0.48, 0.58, 0.72, 0.82],
-    [30, 0, 0, 30]
-  );
-
-  const cta = useTransform(smoothProgress, [0.78, 0.88, 1], [0, 1, 1]);
-  const ctaScale = useTransform(smoothProgress, [0.78, 0.88], [0.95, 1]);
-
+  // ============================================================================
+  // RENDER
+  // ============================================================================
   return (
     <div
       ref={containerRef}
       className="relative h-[400vh]"
-      style={{ backgroundColor: "#0D0D0D" }}
+      style={{
+        backgroundColor: "#0D0D0D",
+        touchAction: "pan-y", // Optimize touch scrolling
+      }}
     >
-      {/* Smooth loading fade-out with AnimatePresence */}
+      {/* Loading Screen */}
       <AnimatePresence>
         {isLoading && (
           <motion.div
@@ -433,8 +524,14 @@ export default function FoodScroll() {
         )}
       </AnimatePresence>
 
-      {/* Sticky Canvas Container with GPU compositing */}
-      <div className="sticky top-0 flex h-screen w-full items-center justify-center overflow-hidden">
+      {/* Sticky Canvas Container - CSS Containment for GPU isolation */}
+      <div
+        className="sticky top-0 flex h-screen w-full items-center justify-center overflow-hidden"
+        style={{
+          contain: "strict", // CSS Containment - isolates layout/paint
+          contentVisibility: "auto", // Skip offscreen rendering
+        }}
+      >
         <canvas
           ref={canvasRef}
           className="absolute inset-0 h-full w-full"
@@ -443,19 +540,24 @@ export default function FoodScroll() {
             willChange: "transform",
             transform: "translateZ(0)",
             backfaceVisibility: "hidden",
-            WebkitBackfaceVisibility: "hidden",
             imageRendering: "auto",
           }}
         />
 
-        {/* Text Overlays with enhanced animations */}
+        {/* Text Overlays - CSS transforms, no Framer scroll tracking */}
         <AnimatePresence>
           {showContent && (
             <>
-              {/* Intro Text - 0% with Y parallax */}
-              <motion.div
-                style={{ opacity: intro, y: introY }}
+              {/* INTRO TEXT */}
+              <div
                 className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center text-center"
+                style={{
+                  opacity: introOpacity,
+                  transform: `translateY(${introY}px)`,
+                  willChange: "opacity, transform",
+                  transition:
+                    "opacity 0.05s ease-out, transform 0.05s ease-out",
+                }}
               >
                 <motion.h1
                   initial={{ y: 40, opacity: 0 }}
@@ -477,12 +579,18 @@ export default function FoodScroll() {
                 >
                   Authentic Flavors, Unforgettable Moments
                 </motion.p>
-              </motion.div>
+              </div>
 
-              {/* Story 1 - Left Aligned with X parallax */}
-              <motion.div
-                style={{ opacity: story1, x: story1X }}
+              {/* STORY 1 - Traditional Recipes */}
+              <div
                 className="pointer-events-none absolute inset-0 z-20 flex items-center px-8 md:px-20"
+                style={{
+                  opacity: story1Opacity,
+                  transform: `translateX(${story1X}px)`,
+                  willChange: "opacity, transform",
+                  transition:
+                    "opacity 0.05s ease-out, transform 0.05s ease-out",
+                }}
               >
                 <div className="max-w-lg">
                   <h2
@@ -498,33 +606,19 @@ export default function FoodScroll() {
                     heritage and love.
                   </p>
                 </div>
-              </motion.div>
+              </div>
 
-              {/* Story 2 - Right Aligned with X parallax */}
-              <motion.div
-                style={{ opacity: story2, x: story2X }}
-                className="pointer-events-none absolute inset-0 z-20 flex items-center justify-end px-8 md:px-20"
-              >
-                <div className="max-w-lg text-right">
-                  <h2
-                    className="font-headline text-4xl font-bold text-white md:text-6xl lg:text-7xl"
-                    style={{ textShadow: "0 4px 30px rgba(0,0,0,0.9)" }}
-                  >
-                    Fresh
-                    <br />
-                    <span className="text-[#50C878]">Ingredients</span>
-                  </h2>
-                  <p className="mt-6 text-lg text-white/80 md:text-xl lg:text-2xl">
-                    Sourced locally every day for the most authentic taste
-                    experience.
-                  </p>
-                </div>
-              </motion.div>
-
-              {/* CTA Section with scale effect */}
-              <motion.div
-                style={{ opacity: cta, scale: ctaScale }}
+              {/* CTA SECTION */}
+              <div
                 className="absolute inset-0 z-20 flex flex-col items-center justify-center px-6 text-center"
+                style={{
+                  opacity: ctaOpacity,
+                  transform: `scale(${ctaScale})`,
+                  willChange: "opacity, transform",
+                  transition:
+                    "opacity 0.05s ease-out, transform 0.05s ease-out",
+                  pointerEvents: ctaOpacity > 0.5 ? "auto" : "none",
+                }}
               >
                 <h2
                   className="font-headline text-4xl font-bold text-white md:text-6xl lg:text-8xl"
@@ -535,7 +629,7 @@ export default function FoodScroll() {
                 <p className="mt-6 max-w-xl text-lg text-white/80 md:text-xl lg:text-2xl">
                   Join us for an unforgettable culinary journey
                 </p>
-              </motion.div>
+              </div>
             </>
           )}
         </AnimatePresence>
