@@ -7,10 +7,34 @@ import Footer from "@/components/layout/footer";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://swad-restaurant.netlify.app"), // Update with your actual domain
+  metadataBase: new URL("https://swadrestaurant.vercel.app"),
   title: "Swad Restaurant | Authentic Indian Cuisine",
   description:
     "Experience the rich and diverse flavors of authentic Indian cuisine at Swad Restaurant and Udappi Center.",
+  openGraph: {
+    title: "Swad Restaurant | Authentic Indian Cuisine",
+    description:
+      "Experience the rich and diverse flavors of authentic Indian cuisine at Swad Restaurant and Udappi Center.",
+    url: "https://swadrestaurant.vercel.app",
+    siteName: "Swad Restaurant",
+    images: [
+      {
+        url: "/opengraph-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Swad Restaurant - Authentic Indian Cuisine",
+      },
+    ],
+    locale: "en_US",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Swad Restaurant | Authentic Indian Cuisine",
+    description:
+      "Experience the rich and diverse flavors of authentic Indian cuisine at Swad Restaurant and Udappi Center.",
+    images: ["/opengraph-image.png"],
+  },
 };
 
 export default function RootLayout({
