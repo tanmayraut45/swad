@@ -53,6 +53,10 @@ export default function FoodScroll() {
   const lastProgressRef = useRef<number>(0);
   const lastTimeRef = useRef<number>(performance.now());
 
+  // iOS Safari fix: Cache viewport height to avoid issues with address bar
+  const viewportHeightRef = useRef<number>(0);
+  const isIOSRef = useRef<boolean>(false);
+
   const [isLoading, setIsLoading] = useState(true);
   const [loadProgress, setLoadProgress] = useState(0);
   const [showContent, setShowContent] = useState(false);
@@ -66,17 +70,56 @@ export default function FoodScroll() {
   const [ctaScale, setCtaScale] = useState(0.95);
 
   // ============================================================================
-  // GET RAW SCROLL PROGRESS (0-1) - Vanilla JS
+  // iOS DETECTION & VIEWPORT FIX
+  // ============================================================================
+  useEffect(() => {
+    // Detect iOS
+    const isIOS =
+      /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    isIOSRef.current = isIOS;
+
+    // Cache initial viewport height (before address bar collapses)
+    viewportHeightRef.current = window.innerHeight;
+
+    // Update on resize but use stable value
+    const handleResize = () => {
+      // On iOS, only update if significantly different (address bar)
+      const newHeight = window.innerHeight;
+      if (!isIOS || Math.abs(newHeight - viewportHeightRef.current) > 100) {
+        viewportHeightRef.current = newHeight;
+      }
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  // ============================================================================
+  // GET RAW SCROLL PROGRESS (0-1) - iOS Compatible
   // ============================================================================
   const getScrollProgress = useCallback((): number => {
     const container = containerRef.current;
     if (!container) return 0;
 
+    // iOS Safari fix: Use cached viewport height
+    const viewportHeight = viewportHeightRef.current || window.innerHeight;
+
+    // iOS Safari fix: Use scrollY as fallback for getBoundingClientRect issues
     const rect = container.getBoundingClientRect();
-    const scrollableHeight = container.offsetHeight - window.innerHeight;
+    const containerTop = rect.top;
+
+    // Also get scroll position directly as backup
+    const scrollTop =
+      window.scrollY ||
+      window.pageYOffset ||
+      document.documentElement.scrollTop;
+
+    const scrollableHeight = container.offsetHeight - viewportHeight;
     if (scrollableHeight <= 0) return 0;
 
-    const progress = -rect.top / scrollableHeight;
+    // Use rect.top for progress (more reliable)
+    const progress = -containerTop / scrollableHeight;
     return clamp(progress, 0, 1);
   }, []);
 
@@ -488,6 +531,9 @@ export default function FoodScroll() {
       style={{
         backgroundColor: "#0D0D0D",
         touchAction: "pan-y", // Optimize touch scrolling
+        // iOS Safari critical fixes
+        WebkitOverflowScrolling: "touch", // Momentum scrolling
+        overscrollBehavior: "none", // Prevent bounce interfering
       }}
     >
       {/* Loading Screen */}
@@ -530,6 +576,9 @@ export default function FoodScroll() {
         style={{
           contain: "strict", // CSS Containment - isolates layout/paint
           contentVisibility: "auto", // Skip offscreen rendering
+          // iOS Safari fixes
+          WebkitTransform: "translateZ(0)",
+          WebkitOverflowScrolling: "touch",
         }}
       >
         <canvas
@@ -539,8 +588,13 @@ export default function FoodScroll() {
             backgroundColor: "#0D0D0D",
             willChange: "transform",
             transform: "translateZ(0)",
+            WebkitTransform: "translateZ(0)", // iOS Safari GPU acceleration
             backfaceVisibility: "hidden",
+            WebkitBackfaceVisibility: "hidden", // iOS Safari
             imageRendering: "auto",
+            // Prevent iOS Safari from interfering
+            WebkitTouchCallout: "none",
+            WebkitUserSelect: "none",
           }}
         />
 
