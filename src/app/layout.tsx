@@ -19,10 +19,11 @@ export const metadata: Metadata = {
     siteName: "Swad Restaurant",
     images: [
       {
-        url: "/opengraph-image.png",
+        url: "https://swadrestaurant.vercel.app/og-image.jpg",
         width: 1200,
         height: 630,
         alt: "Swad Restaurant - Authentic Indian Cuisine",
+        type: "image/jpeg",
       },
     ],
     locale: "en_US",
@@ -33,7 +34,7 @@ export const metadata: Metadata = {
     title: "Swad Restaurant | Authentic Indian Cuisine",
     description:
       "Experience the rich and diverse flavors of authentic Indian cuisine at Swad Restaurant and Udappi Center.",
-    images: ["/opengraph-image.png"],
+    images: ["https://swadrestaurant.vercel.app/og-image.jpg"],
   },
 };
 

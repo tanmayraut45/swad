@@ -1,6 +1,6 @@
 import FoodScroll from "./FoodScroll";
 
-async function HeroSection() {
+function HeroSection() {
   return <FoodScroll />;
 }
 
