@@ -8,6 +8,15 @@ const FRAME_COUNT = 120;
 const FRAME_PATH = "/frames/ezgif-frame-";
 
 // ============================================================================
+// iOS COMPATIBILITY: Configuration
+// ============================================================================
+const MAX_MOBILE_DPR = 2.0; // Cap DPR on mobile to reduce memory usage
+const LOADING_TIMEOUT_MS = 20000; // Force complete loading after 20 seconds
+const BATCH_SIZE_MOBILE = 10; // Smaller batches for mobile
+const BATCH_SIZE_DESKTOP = 25; // Larger batches for desktop
+const MIN_FRAMES_TO_START = 30; // Minimum frames needed to show content
+
+// ============================================================================
 // PERFORMANCE UTILITIES - Vanilla JS for maximum smoothness
 // ============================================================================
 
@@ -33,16 +42,48 @@ const mapRange = (
   );
 };
 
+// ============================================================================
+// iOS DETECTION - Updated for newer devices
+// ============================================================================
+const detectiOS = (): boolean => {
+  if (typeof window === "undefined") return false;
+
+  const userAgent = navigator.userAgent || navigator.vendor || "";
+
+  // Check for iOS devices
+  if (/iPad|iPhone|iPod/.test(userAgent)) return true;
+
+  // Check for iPad on iOS 13+ (reports as Mac)
+  if (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+    return true;
+
+  // Additional check for newer iOS versions that may change UA
+  if (/Mac/.test(userAgent) && "ontouchend" in document) return true;
+
+  return false;
+};
+
+const detectMobile = (): boolean => {
+  if (typeof window === "undefined") return false;
+  return (
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+      navigator.userAgent
+    ) || window.innerWidth < 768
+  );
+};
+
 export default function FoodScroll() {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const offscreenCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  const imagesRef = useRef<(ImageBitmap | null)[]>(
+  // Use HTMLImageElement as fallback for iOS compatibility
+  const imagesRef = useRef<(ImageBitmap | HTMLImageElement | null)[]>(
     new Array(FRAME_COUNT).fill(null)
   );
   const lastDrawnFrameRef = useRef<number>(-1);
   const rafIdRef = useRef<number | null>(null);
+  const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // ============================================================================
   // VANILLA SCROLL STATE - No Framer Motion for scroll tracking!
@@ -56,6 +97,8 @@ export default function FoodScroll() {
   // iOS Safari fix: Cache viewport height to avoid issues with address bar
   const viewportHeightRef = useRef<number>(0);
   const isIOSRef = useRef<boolean>(false);
+  const isMobileRef = useRef<boolean>(false);
+  const effectiveDPRRef = useRef<number>(1);
 
   const [isLoading, setIsLoading] = useState(true);
   const [loadProgress, setLoadProgress] = useState(0);
@@ -73,11 +116,17 @@ export default function FoodScroll() {
   // iOS DETECTION & VIEWPORT FIX
   // ============================================================================
   useEffect(() => {
-    // Detect iOS
-    const isIOS =
-      /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    // Detect iOS and mobile
+    const isIOS = detectiOS();
+    const isMobile = detectMobile();
     isIOSRef.current = isIOS;
+    isMobileRef.current = isMobile;
+
+    // Calculate effective DPR (capped on mobile to save memory)
+    const rawDPR = window.devicePixelRatio || 1;
+    effectiveDPRRef.current = isMobile
+      ? Math.min(rawDPR, MAX_MOBILE_DPR)
+      : rawDPR;
 
     // Cache initial viewport height (before address bar collapses)
     viewportHeightRef.current = window.innerHeight;
@@ -129,11 +178,12 @@ export default function FoodScroll() {
   const drawSingleFrame = useCallback(
     (
       ctx: CanvasRenderingContext2D,
-      img: ImageBitmap,
+      img: ImageBitmap | HTMLImageElement,
       canvasWidth: number,
       canvasHeight: number
     ) => {
-      const dpr = window.devicePixelRatio || 1;
+      // Use effective DPR (capped on mobile for memory savings)
+      const dpr = effectiveDPRRef.current;
       const displayWidth = window.innerWidth;
       const displayHeight = window.innerHeight;
 
@@ -224,7 +274,8 @@ export default function FoodScroll() {
         return;
       }
 
-      const dpr = window.devicePixelRatio || 1;
+      // Use effective DPR (capped on mobile for memory savings)
+      const dpr = effectiveDPRRef.current;
       const displayWidth = window.innerWidth;
       const displayHeight = window.innerHeight;
 
@@ -418,82 +469,195 @@ export default function FoodScroll() {
   }, []);
 
   // ============================================================================
-  // PROGRESSIVE IMAGE LOADING
+  // PROGRESSIVE IMAGE LOADING - iOS Compatible with Fallback
   // ============================================================================
   useEffect(() => {
     let isMounted = true;
     let loadedCount = 0;
+    let failedCount = 0;
 
+    // Helper: Complete loading and show content
+    const completeLoading = () => {
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+        loadingTimeoutRef.current = null;
+      }
+      setIsLoading(false);
+      setTimeout(() => setShowContent(true), 100);
+    };
+
+    // Helper: Check if we should complete loading
+    const checkLoadingComplete = () => {
+      const totalProcessed = loadedCount + failedCount;
+
+      // Complete if all frames processed
+      if (totalProcessed >= FRAME_COUNT) {
+        setTimeout(completeLoading, 300);
+        return true;
+      }
+
+      // Complete early if we have minimum frames and some have failed
+      if (
+        loadedCount >= MIN_FRAMES_TO_START &&
+        failedCount > 0 &&
+        totalProcessed >= FRAME_COUNT * 0.9
+      ) {
+        setTimeout(completeLoading, 300);
+        return true;
+      }
+
+      return false;
+    };
+
+    // Load single image with createImageBitmap fallback to HTMLImageElement
     const loadImage = async (index: number): Promise<void> => {
+      if (!isMounted) return;
+
+      const frameNum = String(index + 1).padStart(3, "0");
+      const imageUrl = `${FRAME_PATH}${frameNum}.jpg`;
+
       try {
-        const frameNum = String(index + 1).padStart(3, "0");
-        const response = await fetch(`${FRAME_PATH}${frameNum}.jpg`);
+        // Try createImageBitmap first (faster, more memory efficient)
+        const response = await fetch(imageUrl);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
         const blob = await response.blob();
-        const bitmap = await createImageBitmap(blob);
 
-        if (isMounted) {
-          imagesRef.current[index] = bitmap;
-          loadedCount++;
-          setLoadProgress(Math.floor((loadedCount / FRAME_COUNT) * 100));
+        // Check if createImageBitmap is supported and working
+        if (typeof createImageBitmap === "function") {
+          try {
+            const bitmap = await createImageBitmap(blob);
+            if (isMounted) {
+              imagesRef.current[index] = bitmap;
+              loadedCount++;
+              setLoadProgress(Math.floor((loadedCount / FRAME_COUNT) * 100));
 
-          // Draw first frame immediately
-          if (index === 0 && canvasRef.current) {
-            const ctx = canvasRef.current.getContext("2d", { alpha: false });
-            if (ctx) {
-              drawSingleFrame(
-                ctx,
-                bitmap,
-                canvasRef.current.width,
-                canvasRef.current.height
-              );
+              // Draw first frame immediately
+              if (index === 0 && canvasRef.current) {
+                const ctx = canvasRef.current.getContext("2d", {
+                  alpha: false,
+                });
+                if (ctx) {
+                  drawSingleFrame(
+                    ctx,
+                    bitmap,
+                    canvasRef.current.width,
+                    canvasRef.current.height
+                  );
+                }
+              }
+
+              checkLoadingComplete();
             }
-          }
-
-          // Complete loading
-          if (loadedCount === FRAME_COUNT) {
-            setTimeout(() => {
-              setIsLoading(false);
-              setTimeout(() => setShowContent(true), 100);
-            }, 300);
+            return; // Success with ImageBitmap
+          } catch {
+            // createImageBitmap failed, fall through to HTMLImageElement
           }
         }
+
+        // Fallback: Use HTMLImageElement (more compatible with iOS Safari)
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => {
+            if (isMounted) {
+              imagesRef.current[index] = img;
+              loadedCount++;
+              setLoadProgress(Math.floor((loadedCount / FRAME_COUNT) * 100));
+
+              // Draw first frame immediately
+              if (index === 0 && canvasRef.current) {
+                const ctx = canvasRef.current.getContext("2d", {
+                  alpha: false,
+                });
+                if (ctx) {
+                  drawSingleFrame(
+                    ctx,
+                    img,
+                    canvasRef.current.width,
+                    canvasRef.current.height
+                  );
+                }
+              }
+
+              checkLoadingComplete();
+            }
+            resolve();
+          };
+          img.onerror = () => reject(new Error("Image load failed"));
+          img.src = URL.createObjectURL(blob);
+        });
       } catch (err) {
-        console.error(`Failed to load frame ${index}:`, err);
+        // Track failures but continue loading other frames
+        failedCount++;
+        if (isMounted) {
+          setLoadProgress(
+            Math.floor(((loadedCount + failedCount) / FRAME_COUNT) * 100)
+          );
+          checkLoadingComplete();
+        }
       }
     };
 
+    // Load images in batches - adaptive batch size for mobile
     const loadInBatches = async () => {
-      // Critical: first 20 frames
+      const isMobile = isMobileRef.current;
+      const batchSize = isMobile ? BATCH_SIZE_MOBILE : BATCH_SIZE_DESKTOP;
+
+      // Critical: first 20 frames (smaller batch for faster first paint)
       const critical = Array.from({ length: 20 }, (_, i) => i);
-      await Promise.all(critical.map(loadImage));
+      for (let i = 0; i < critical.length; i += batchSize) {
+        if (!isMounted) break;
+        const batch = critical.slice(i, i + batchSize);
+        await Promise.all(batch.map(loadImage));
+      }
 
       if (!isMounted) return;
 
-      // Remaining in chunks of 25
+      // Remaining frames in adaptive batches
       const remaining = Array.from(
         { length: FRAME_COUNT - 20 },
         (_, i) => i + 20
       );
 
-      for (let i = 0; i < remaining.length; i += 25) {
+      for (let i = 0; i < remaining.length; i += batchSize) {
         if (!isMounted) break;
-        const chunk = remaining.slice(i, i + 25);
+        const chunk = remaining.slice(i, i + batchSize);
         await Promise.all(chunk.map(loadImage));
+
+        // Small delay between batches on mobile to prevent throttling
+        if (isMobile && isMounted) {
+          await new Promise((resolve) => setTimeout(resolve, 50));
+        }
       }
     };
+
+    // Set loading timeout - force complete after timeout
+    loadingTimeoutRef.current = setTimeout(() => {
+      if (isMounted && loadedCount >= MIN_FRAMES_TO_START) {
+        completeLoading();
+      }
+    }, LOADING_TIMEOUT_MS);
 
     loadInBatches();
 
     return () => {
       isMounted = false;
-      imagesRef.current.forEach((bitmap) => {
-        if (bitmap) bitmap.close();
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+      }
+      // Clean up bitmaps (only ImageBitmap has close method)
+      imagesRef.current.forEach((img) => {
+        if (img && "close" in img && typeof img.close === "function") {
+          img.close();
+        }
       });
     };
   }, [drawSingleFrame]);
 
   // ============================================================================
-  // CANVAS RESIZE HANDLER
+  // CANVAS RESIZE HANDLER - Uses effective DPR (capped on mobile)
   // ============================================================================
   useEffect(() => {
     const handleResize = () => {
@@ -501,7 +665,8 @@ export default function FoodScroll() {
       const offscreen = offscreenCanvasRef.current;
       if (!canvas) return;
 
-      const dpr = window.devicePixelRatio || 1;
+      // Use effective DPR (capped on mobile for memory savings)
+      const dpr = effectiveDPRRef.current || window.devicePixelRatio || 1;
       const displayWidth = window.innerWidth;
       const displayHeight = window.innerHeight;
 
