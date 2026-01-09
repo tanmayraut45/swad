@@ -38,18 +38,21 @@ const MenuSection = () => {
         </div>
 
         <Tabs defaultValue={menuCategories[0].id} className="mt-12 w-full">
-          <div className="flex flex-col items-center gap-4">
-            <TabsList className="grid w-full grid-cols-2 sm:w-auto sm:grid-cols-5">
-              {menuCategories.map((category) => (
-                <TabsTrigger
-                  key={category.id}
-                  value={category.id}
-                  className="text-sm"
-                >
-                  {category.name[language]}
-                </TabsTrigger>
-              ))}
-            </TabsList>
+          <div className="flex flex-col items-center gap-6">
+            {/* Horizontal scrollable tabs on mobile, grid on desktop */}
+            <div className="w-full overflow-x-auto pb-2 sm:overflow-visible sm:pb-0">
+              <TabsList className="inline-flex w-max gap-1 sm:grid sm:w-auto sm:grid-cols-5">
+                {menuCategories.map((category) => (
+                  <TabsTrigger
+                    key={category.id}
+                    value={category.id}
+                    className="whitespace-nowrap px-4 text-sm"
+                  >
+                    {category.name[language]}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </div>
             <Button variant="outline" size="sm" onClick={handleDownloadClick}>
               <Download className="mr-2 h-4 w-4" />
               {language === "en" ? "Download PDF" : "पीडीएफ डाउनलोड करा"}
