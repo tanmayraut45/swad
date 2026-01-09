@@ -10,11 +10,11 @@ const FRAME_PATH = "/frames/ezgif-frame-";
 // ============================================================================
 // iOS COMPATIBILITY: Configuration
 // ============================================================================
-const MAX_MOBILE_DPR = 2.0; // Cap DPR on mobile to reduce memory usage
-const LOADING_TIMEOUT_MS = 20000; // Force complete loading after 20 seconds
-const BATCH_SIZE_MOBILE = 10; // Smaller batches for mobile
-const BATCH_SIZE_DESKTOP = 25; // Larger batches for desktop
-const MIN_FRAMES_TO_START = 30; // Minimum frames needed to show content
+const MAX_MOBILE_DPR = 1.5; // Aggressive cap for iPhone 17 Pro Max stability
+const LOADING_TIMEOUT_MS = 5000; // Fallback to content after 5s (premium feel = fast)
+const BATCH_SIZE_MOBILE = 8; // Small batches
+const BATCH_SIZE_DESKTOP = 20;
+const MIN_FRAMES_TO_START = 15; // Only require ~12% of frames to start interaction
 
 // ============================================================================
 // PERFORMANCE UTILITIES - Vanilla JS for maximum smoothness
@@ -478,31 +478,40 @@ export default function FoodScroll() {
 
     // Helper: Complete loading and show content
     const completeLoading = () => {
-      if (loadingTimeoutRef.current) {
-        clearTimeout(loadingTimeoutRef.current);
-        loadingTimeoutRef.current = null;
+      if (isLoading) {
+        if (loadingTimeoutRef.current) {
+          clearTimeout(loadingTimeoutRef.current);
+          loadingTimeoutRef.current = null;
+        }
+        setLoadProgress(100); // Visual completion
+        setTimeout(() => {
+          setIsLoading(false);
+          setTimeout(() => setShowContent(true), 100);
+        }, 500); // Slight delay for users to register "100%"
       }
-      setIsLoading(false);
-      setTimeout(() => setShowContent(true), 100);
     };
 
     // Helper: Check if we should complete loading
     const checkLoadingComplete = () => {
       const totalProcessed = loadedCount + failedCount;
+      const isMobile = isMobileRef.current;
+      const SKIP_FACTOR = isMobile ? 3 : 1;
 
-      // Complete if all frames processed
-      if (totalProcessed >= FRAME_COUNT) {
-        setTimeout(completeLoading, 300);
+      // Calculate minimum actual frames needed to start (accounting for skipping)
+      const minActualFrames = Math.ceil(MIN_FRAMES_TO_START / SKIP_FACTOR);
+
+      // Strategy: "Playable as soon as possible"
+      // If we have enough frames to show the intro, let the user in!
+      // The rest will stream in the background.
+      if (loadedCount >= minActualFrames) {
+        completeLoading();
         return true;
       }
 
-      // Complete early if we have minimum frames and some have failed
-      if (
-        loadedCount >= MIN_FRAMES_TO_START &&
-        failedCount > 0 &&
-        totalProcessed >= FRAME_COUNT * 0.9
-      ) {
-        setTimeout(completeLoading, 300);
+      // Also complete if we simply ran out of frames to load (short animation)
+      const totalNeeded = Math.ceil(FRAME_COUNT / SKIP_FACTOR);
+      if (totalProcessed >= totalNeeded) {
+        completeLoading();
         return true;
       }
 
