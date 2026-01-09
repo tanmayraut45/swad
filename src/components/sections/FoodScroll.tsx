@@ -523,32 +523,52 @@ export default function FoodScroll() {
 
         const blob = await response.blob();
 
+        // Determine how many frames to fill with this image (frame skipping)
+        const isMobile = isMobileRef.current;
+        const SKIP_FACTOR = isMobile ? 3 : 1; // Load 1, skip 2 on mobile
+
+        // Helper to assign image to multiple slots
+        const assignImage = (img: ImageBitmap | HTMLImageElement) => {
+          if (!isMounted) return;
+
+          // Assign this image to the current index AND the skipped slots
+          // This fills the gaps so the animation logic doesn't need to change
+          for (let i = 0; i < SKIP_FACTOR; i++) {
+            if (index + i < FRAME_COUNT) {
+              imagesRef.current[index + i] = img;
+            }
+          }
+
+          loadedCount++;
+          // Calculate progress based on TOTAL frames needed (reduced on mobile)
+          const totalNeeded = Math.ceil(FRAME_COUNT / SKIP_FACTOR);
+          setLoadProgress(
+            Math.min(100, Math.floor((loadedCount / totalNeeded) * 100))
+          );
+
+          // Draw first frame immediately
+          if (index === 0 && canvasRef.current) {
+            const ctx = canvasRef.current.getContext("2d", {
+              alpha: false,
+            });
+            if (ctx) {
+              drawSingleFrame(
+                ctx,
+                img,
+                canvasRef.current.width,
+                canvasRef.current.height
+              );
+            }
+          }
+
+          checkLoadingComplete();
+        };
+
         // Check if createImageBitmap is supported and working
         if (typeof createImageBitmap === "function") {
           try {
             const bitmap = await createImageBitmap(blob);
-            if (isMounted) {
-              imagesRef.current[index] = bitmap;
-              loadedCount++;
-              setLoadProgress(Math.floor((loadedCount / FRAME_COUNT) * 100));
-
-              // Draw first frame immediately
-              if (index === 0 && canvasRef.current) {
-                const ctx = canvasRef.current.getContext("2d", {
-                  alpha: false,
-                });
-                if (ctx) {
-                  drawSingleFrame(
-                    ctx,
-                    bitmap,
-                    canvasRef.current.width,
-                    canvasRef.current.height
-                  );
-                }
-              }
-
-              checkLoadingComplete();
-            }
+            assignImage(bitmap);
             return; // Success with ImageBitmap
           } catch {
             // createImageBitmap failed, fall through to HTMLImageElement
@@ -561,28 +581,7 @@ export default function FoodScroll() {
 
         await new Promise<void>((resolve, reject) => {
           img.onload = () => {
-            if (isMounted) {
-              imagesRef.current[index] = img;
-              loadedCount++;
-              setLoadProgress(Math.floor((loadedCount / FRAME_COUNT) * 100));
-
-              // Draw first frame immediately
-              if (index === 0 && canvasRef.current) {
-                const ctx = canvasRef.current.getContext("2d", {
-                  alpha: false,
-                });
-                if (ctx) {
-                  drawSingleFrame(
-                    ctx,
-                    img,
-                    canvasRef.current.width,
-                    canvasRef.current.height
-                  );
-                }
-              }
-
-              checkLoadingComplete();
-            }
+            assignImage(img);
             resolve();
           };
           img.onerror = () => reject(new Error("Image load failed"));
@@ -592,8 +591,14 @@ export default function FoodScroll() {
         // Track failures but continue loading other frames
         failedCount++;
         if (isMounted) {
+          const isMobile = isMobileRef.current;
+          const SKIP_FACTOR = isMobile ? 3 : 1;
+          const totalNeeded = Math.ceil(FRAME_COUNT / SKIP_FACTOR);
           setLoadProgress(
-            Math.floor(((loadedCount + failedCount) / FRAME_COUNT) * 100)
+            Math.min(
+              100,
+              Math.floor(((loadedCount + failedCount) / totalNeeded) * 100)
+            )
           );
           checkLoadingComplete();
         }
@@ -603,10 +608,19 @@ export default function FoodScroll() {
     // Load images in batches - adaptive batch size for mobile
     const loadInBatches = async () => {
       const isMobile = isMobileRef.current;
+      const SKIP_FACTOR = isMobile ? 3 : 1;
       const batchSize = isMobile ? BATCH_SIZE_MOBILE : BATCH_SIZE_DESKTOP;
 
-      // Critical: first 20 frames (smaller batch for faster first paint)
-      const critical = Array.from({ length: 20 }, (_, i) => i);
+      // Calculate which unique frames we need to load
+      const framesToLoad = Array.from(
+        { length: FRAME_COUNT },
+        (_, i) => i
+      ).filter((i) => i % SKIP_FACTOR === 0);
+
+      // Critical: first batch (faster first paint)
+      const firstBatchCount = isMobile ? 5 : 20; // Reduced first batch on mobile
+      const critical = framesToLoad.slice(0, firstBatchCount);
+
       for (let i = 0; i < critical.length; i += batchSize) {
         if (!isMounted) break;
         const batch = critical.slice(i, i + batchSize);
@@ -615,11 +629,8 @@ export default function FoodScroll() {
 
       if (!isMounted) return;
 
-      // Remaining frames in adaptive batches
-      const remaining = Array.from(
-        { length: FRAME_COUNT - 20 },
-        (_, i) => i + 20
-      );
+      // Remaining frames
+      const remaining = framesToLoad.slice(firstBatchCount);
 
       for (let i = 0; i < remaining.length; i += batchSize) {
         if (!isMounted) break;
